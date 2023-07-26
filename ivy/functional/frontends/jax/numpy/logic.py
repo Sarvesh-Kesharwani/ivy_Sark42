@@ -7,6 +7,7 @@ from ivy.functional.frontends.jax.numpy import (
     promote_types_of_jax_inputs as promote_jax_arrays,
 )
 from ivy.utils.exceptions import IvyNotImplementedException
+from ivy.func_wrapper import with_supported_dtypes
 
 
 def _packbits_nested_list_padding(arr, pad_length):
@@ -254,3 +255,29 @@ def packbits(x, /, *, axis=None, bitorder="big"):
     bits = ivy.expand_dims(bits, axis=tuple(range(x.ndim - 1)))
     packed = (x << bits).sum(axis=-1).astype("uint8")
     return ivy.swapaxes(packed, axis, -1)
+
+
+@with_supported_dtypes(
+    {"0.4.13 and below": ("int64", "float64", "float32", "int32", "uint8")},
+    "jax",
+)
+@to_ivy_arrays_and_back
+def fromfunction(function, shape, *, dtype=float, **kwargs):
+    def canonicalize_shape(shape, context="shape argument"):
+        if isinstance(shape, int):
+            return (shape,)
+        elif isinstance(shape, list):
+            return tuple(shape)
+        elif isinstance(shape, tuple):
+            return shape
+        else:
+            msg = "{} must be an int, list, or tuple, but got {}."
+            raise TypeError(msg.format(context, type(shape)))
+
+    shape = canonicalize_shape(shape)
+    for i in range(len(shape)):
+        in_axes = [0 if i == j else None for j in range(len(shape))]
+        function = ivy.vmap(function, in_axes=tuple(in_axes[::-1]))
+    ret = function(*(ivy.arange(s, dtype=dtype) for s in shape), **kwargs)
+    ret = ivy.astype(ret, dtype)
+    return ret
