@@ -2759,12 +2759,10 @@ def get_item(
     query
         array, index array, integer indices or boolean mask.
     copy
-        boolean indicating whether to copy the input array.
+        boolean indicating whether or not to copy the input array.
         If True, the function must always copy.
-        If False, the function must never copy and must
-        raise a ValueError in case a copy would be necessary.
-        If None, the function must reuse existing memory buffer if possible
-        and copy otherwise. Default: ``None``.
+        If False, the function must never copy.
+        In case copy is False we avoid copying by returning a view of the input array.
 
     Returns
     -------
@@ -2803,8 +2801,6 @@ def get_item(
             )
         ret = ivy.gather_nd(x, query)
         ret = ivy.reshape(ret, target_shape) if target_shape != list(ret.shape) else ret
-    if copy:
-        return ivy.copy_array(ret)
     return ret
 
 
@@ -2820,7 +2816,6 @@ get_item.mixed_backend_wrappers = {
 
 @handle_nestable
 @handle_partial_mixed_function
-@handle_view_indexing
 @inputs_to_ivy_arrays
 @handle_array_function
 def set_item(
@@ -2860,8 +2855,8 @@ def set_item(
     >>> val = ivy.array([10, 10])
     >>> ivy.set_item(x, query, val)
     >>> print(x)
-    ivy.array([10, 10, 20])
 
+    ivy.array([10, 10, 20])
     >>> x = ivy.array([[0, -1, 20], [5, 2, -8]])
     >>> query = ([1, 1])
     >>> val = ivy.array([10, 10])
