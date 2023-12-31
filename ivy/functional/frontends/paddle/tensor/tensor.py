@@ -118,6 +118,22 @@ class Tensor:
         },
         "paddle",
     )
+    def __lt__(self, y, /, name=None):
+        return paddle_frontend.logic.less_than(self, y)
+
+    @with_unsupported_dtypes(
+        {
+            "2.5.2 and below": (
+                "bool",
+                "uint8",
+                "int8",
+                "int16",
+                "complex64",
+                "complex128",
+            )
+        },
+        "paddle",
+    )
     def __ge__(self, y, /, name=None):
         return paddle_frontend.logic.greater_equal(self, y)
 
@@ -201,6 +217,9 @@ class Tensor:
     def __xor__(self, y, /, name=None):
         return paddle_frontend.logic.bitwise_xor(self, y)
 
+    def __invert__(self, out=None, name=None):
+        return paddle_frontend.logic.bitwise_not(self)
+
     def __len__(self):
         return len(self._ivy_array)
 
@@ -221,6 +240,23 @@ class Tensor:
     def __int__(self):
         return int(self._ivy_array)
 
+    @with_unsupported_dtypes(
+        {
+            "2.5.2 and below": (
+                "bool",
+                "unsigned",
+                "int8",
+                "int32",
+                "int64",
+                "float16",
+                "bfloat16",
+            )
+        },
+        "paddle",
+    )
+    def __long__(self):
+        return int(self._ivy_array)
+
     # Instance Methods #
     # ---------------- #
 
@@ -235,7 +271,32 @@ class Tensor:
                 return paddle_frontend.reshape(self, shape)
             else:
                 return paddle_frontend.reshape(self, args)
-        return paddle_frontend.reshape(self)
+        else:
+            raise ValueError("reshape() got no values for argument 'shape'")
+
+    def reshape_(self, *args, shape=None):
+        if args and shape:
+            raise TypeError("reshape() got multiple values for argument 'shape'")
+        if shape is not None:
+            self.ivy_array = paddle_frontend.reshape(
+                self._ivy_array, shape=shape
+            ).ivy_array
+            return self
+        if args:
+            if isinstance(args[0], (tuple, list)):
+                shape = args[0]
+                self.ivy_array = paddle_frontend.reshape(
+                    self._ivy_array, shape=shape
+                ).ivy_array
+                return self
+            else:
+                self.ivy_array = paddle_frontend.reshape(
+                    self._ivy_array, args
+                ).ivy_array
+                return self
+
+        self.ivy_array = paddle_frontend.reshape(self._ivy_array).ivy_array
+        return self
 
     def dim(self):
         return self.ivy_array.ndim
@@ -420,6 +481,10 @@ class Tensor:
         return paddle_frontend.tanh(self)
 
     @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
+    def add(self, y, name=None):
+        return paddle_frontend.Tensor(ivy.add(self._ivy_array, _to_ivy_array(y)))
+
+    @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
     def add_(self, y, name=None):
         self.ivy_array = paddle_frontend.add(self, y).ivy_array
         return self
@@ -456,6 +521,17 @@ class Tensor:
     @with_unsupported_dtypes(
         {"2.5.2 and below": ("float16", "uint16", "int16")}, "paddle"
     )
+    def squeeze(self, axis=None, name=None):
+        if isinstance(axis, int) and self.ndim > 0:
+            if self.shape[axis] > 1:
+                return self
+        if len(self.shape) == 0:
+            return self
+        return paddle_frontend.squeeze(self, axis=axis)
+
+    @with_unsupported_dtypes(
+        {"2.5.2 and below": ("float16", "uint16", "int16")}, "paddle"
+    )
     def squeeze_(self, axis=None, name=None):
         self.ivy_array = paddle_frontend.squeeze(self, axis=axis).ivy_array
         return self
@@ -463,6 +539,12 @@ class Tensor:
     @with_unsupported_dtypes({"2.5.2 and below": ("float16", "bfloat16")}, "paddle")
     def multiply(self, y, name=None):
         return paddle_frontend.multiply(self, y)
+
+    @with_unsupported_dtypes({"2.5.2 and below": ("float16", "bfloat16")}, "paddle")
+    def matmul(self, y, transpose_x=False, transpose_y=False, name=None):
+        return paddle_frontend.matmul(
+            self, y, transpose_x=transpose_x, transpose_y=transpose_y
+        )
 
     @with_supported_dtypes(
         {"2.5.2 and below": ("float16", "float32", "float64", "int32", "int64")},
@@ -780,6 +862,12 @@ class Tensor:
     def mod(self, y, name=None):
         return paddle_frontend.Tensor(ivy.fmod(self._ivy_array, _to_ivy_array(y)))
 
+    @with_supported_dtypes(
+        {"2.5.2 and below": ("float32", "float64", "int32", "int64")}, "paddle"
+    )
+    def floor_mod(self, y, name=None):
+        return paddle_frontend.remainder(self, y)
+
     # cond
     @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
     def cond(self, p=None, name=None):
@@ -895,6 +983,28 @@ class Tensor:
     @with_supported_dtypes(
         {
             "2.5.2 and below": (
+                "bfloat16",
+                "float32",
+                "float64",
+                "int8",
+                "int16",
+                "int32",
+                "int64",
+                "uint8",
+            )
+        },
+        "paddle",
+    )
+    def flatten(self, start_axis=0, stop_axis=-1, name=None):
+        if len(self.shape) == 0:
+            return self.unsqueeze(axis=0)
+        return paddle_frontend.Tensor(
+            ivy.flatten(self.ivy_array, start_dim=start_axis, end_dim=stop_axis)
+        )
+
+    @with_supported_dtypes(
+        {
+            "2.5.2 and below": (
                 "float32",
                 "float64",
                 "int16",
@@ -945,6 +1055,10 @@ class Tensor:
     @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
     def inner(self, y, name=None):
         return paddle_frontend.inner(self, y, name)
+
+    @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
+    def acos(self, name=None):
+        return paddle_frontend.Tensor(ivy.acos(self._ivy_array))
 
     @with_supported_dtypes({"2.5.2 and below": ("float32", "float64")}, "paddle")
     def mean(self, axis=None, keepdim=False, name=None):
