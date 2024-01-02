@@ -656,7 +656,7 @@ def test_torch_nanmean(
     test_flags,
     backend_fw,
 ):
-    input_dtype, x, axis = dtype_and_x
+    input_dtype, x, axis, *_ = dtype_and_x
     helpers.test_frontend_function(
         input_dtypes=input_dtype,
         backend_to_test=backend_fw,
@@ -760,14 +760,14 @@ def test_torch_norm(
 
     helpers.test_frontend_function(
         backend_to_test=backend_fw,
-        input_dtypes=[x_dtype],
+        input_dtypes=x_dtype,
         frontend=frontend,
         test_flags=test_flags,
         fn_tree=fn_tree,
         on_device=on_device,
         rtol=1e-01,
         atol=1e-08,
-        input=x,
+        input=x[0],
         p=p,
         dim=axis,
         keepdim=keepdim,
